@@ -72,3 +72,17 @@ commands:
       label: "OPTIONAL - Use upstream DevWorkspace operator"
       component: tooling-container
       commandLine: ./patch-dw-subcription.sh
+  - id: 8-configure-quarkus-environment
+    exec:
+      label: "8. Configure Quarkus environment"
+      component: tooling-container
+      commandLine: |
+        curl -s "https://get.sdkman.io" | bash ;
+        source "$HOME/.sdkman/bin/sdkman-init.sh" . ;
+        sdk install java 21.0.1-tem ;
+        sdk install maven 3.9.6 ;
+        sdk install quarkus 3.6.0 ;
+        sdk install java 21.0.1-graalce ;
+        sdk install jbang  ;
+        source "$HOME/.sdkman/bin/sdkman-init.sh" . ;
+        echo "DONE" ;
