@@ -1,0 +1,74 @@
+schemaVersion: 2.1.0
+metadata:
+  name: devspaces-demo
+components:
+  - name: tooling-container
+    container:
+      image: quay.io/devfile/universal-developer-image:ubi8-latest
+      memoryRequest: 10240M
+      memoryLimit: 10240M
+      cpuRequest: 2000m
+      cpuLimit: 2500m
+commands:
+  - id: 1-deploy-devspaces
+    exec:
+      label: "1. Deploy nightly build of Dev Spaces"
+      component: tooling-container
+      commandLine: |
+        [[ "$(oc whoami)" =~ ^kube:admin$ ]] || (echo "You need to login as kubeadmin" && false) &&
+        DSC_VERSION="3.5.0-CI"; DSC_ARCH="linux-x64"
+        DSC_HOME=${HOME}/.dsc; mkdir -p "${DSC_HOME}"
+        DSC_TGZ_URL="https://github.com/redhat-developer/devspaces-chectl/releases/download/${DSC_VERSION}-dsc-assets/devspaces-${DSC_VERSION%-*}-dsc-${DSC_ARCH}.tar.gz"
+        curl -sSkLo- "${DSC_TGZ_URL}" | tar -zx -C "${DSC_HOME}/" --strip-components 1 
+        if [[ -d ${DSC_HOME}/bin ]]; then \
+          export PATH=${PATH%":${DSC_HOME}/bin"}:${DSC_HOME}/bin; echo -n "Installed: "; dsc version; \
+        else \
+          echo "An error occurred installing dsc $DSC_VERSION for arch $DSC_ARCH ! Check if ${DSC_TGZ_URL} is a valid file."; \
+        fi
+        dsc server:deploy --olm-channel=next --telemetry=off
+  - id: 2-day1-configs
+    exec:
+      label: "2. Create users, change inactivity timeout, enable GitHub OAuth and image puller"
+      component: tooling-container
+      commandLine:  |
+        [[ "$(oc whoami)" =~ ^kube:admin$ ]] || (echo "You need to login as kubeadmin" && false) &&
+        OPENSHIFT_USER=johndoe OPENSHIFT_PASSWORD=johndoe ./1-create-unprivileged-user.sh &&
+        OPENSHIFT_USER=janeroe OPENSHIFT_PASSWORD=janeroe ./1-create-unprivileged-user.sh &&
+        OPENSHIFT_USER=gopher OPENSHIFT_PASSWORD=gopher ./1-create-unprivileged-user.sh && 
+        OPENSHIFT_USER=duke OPENSHIFT_PASSWORD=duke ./1-create-unprivileged-user.sh && 
+        OPENSHIFT_USER=phippy OPENSHIFT_PASSWORD=phippy ./1-create-unprivileged-user.sh &&
+        ./2-disable-workspace-idling.sh &&
+        read -p "ENTER Base64 GitHub OAuth Client ID: " BASE64_GH_OAUTH_CLIENT_ID &&
+        read -p "ENTER Base64 GitHub OAuth Client Secret: " BASE64_GH_OAUTH_CLIENT_SECRET &&
+        export BASE64_GH_OAUTH_CLIENT_ID &&
+        export BASE64_GH_OAUTH_CLIENT_SECRET &&
+        ./3-1-configure-gh-oauth.sh &&
+        ./4-enable-image-puller.sh
+  - id: 3-configure-the-image-puller
+    exec:
+      label: "3. Configure the image puller (⚠️ start the workspace in johndoe namespace before running)"
+      component: tooling-container
+      commandLine: ./configure-image-puller.sh
+  - id: 4-login
+    exec:
+      label: "OPTIONAL - Login into the cluster where you want to deploy Dev Spaces"
+      component: tooling-container
+      commandLine: |
+        read -p "ENTER the target cluster URL (e.g. https://api.mloriedo-devworkspaces.devcluster.openshift.com:6443): " API_URL &&
+        read -p "ENTER an admin API token (e.g. sha256~RJcIikEKqmhQdle3LQL5TNwxwGoEBTOkvBYxJx0jOnU): " API_TOKEN &&
+        oc login --token=${API_TOKEN} --server=${API_URL}
+  - id: 5-use-upstream-vscode
+    exec:
+      label: "OPTIONAL - Use upstream VS Code"
+      component: tooling-container
+      commandLine: ./change-default-ide.sh
+  - id: 6-use-upstream-udi
+    exec:
+      label: "OPTIONAL - Set upstream UDI as default"
+      component: tooling-container
+      commandLine: ./change-default-component.sh
+  - id: 7-patch-dw-subscription
+    exec:
+      label: "OPTIONAL - Use upstream DevWorkspace operator"
+      component: tooling-container
+      commandLine: ./patch-dw-subcription.sh
