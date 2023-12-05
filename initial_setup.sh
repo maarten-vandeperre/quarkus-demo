@@ -7,3 +7,5 @@ sdk install maven ;
 sdk install quarkus ;
 sdk install java 17.0.8-graalce ;
 sdk install jbang ;
+source "$HOME/.sdkman/bin/sdkman-init.sh" . ;
+echo "DONE" ;
